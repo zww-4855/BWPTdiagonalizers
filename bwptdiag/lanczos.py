@@ -2,7 +2,6 @@ import numpy as np
 from numpy import linalg as LA
 from scipy import linalg
 from scipy.linalg import eigh
-import matplotlib.pyplot as plt
 import math
 import sys as sys
 import os as os
