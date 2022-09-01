@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import linalg as LA
+import scipy.linalg
 from scipy import linalg
 from scipy.linalg import eigh
 import math
