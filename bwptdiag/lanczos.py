@@ -5,9 +5,9 @@ from scipy.linalg import eigh
 import math
 import sys as sys
 import os as os
-from InitializeBWPT import *
-from NumericalRoutines import *
-from IOhandling import *
+from bwptdiag.InitializeBWPT import *
+from bwptdiag.NumericalRoutines import *
+from bwptdiag.IOhandling import *
 
 
 # PERFORMS THE STANDARD LANCZOS ITERATIVE DIAGONALIZATION TECHNIQUE
@@ -96,7 +96,7 @@ def Run_Lanczos(Amat,dim=3,maxitr=10,p=np.asarray([]),TOL=10**-8,PRINT=0,PreLanc
     # Initialize first iteration of Lanczos
     if p.size==0:
         blockDim=1
-        p,theta,lowestElements = Get_p(Amat,matrixDim,blockDim,True)
+        p,theta,lowestElements = Get_p(Amat,dim,blockDim,True)
     else:
         theta=(p.T@Amat)@p
     R[:,1]=p[:,0]
