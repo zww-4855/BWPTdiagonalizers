@@ -7,9 +7,11 @@ import math
 import sys as sys
 import os as os
 from collections import OrderedDict
-from InitializeBWPT import *
-from NumericalRoutines import *
-from IOhandling import *
+
+from bwptdiag.InitializeBWPT import *
+from bwptdiag.NumericalRoutines import *
+from bwptdiag.IOhandling import *
+
 from scipy.sparse.linalg import gmres
 from collections import deque
 ##########################################################################
@@ -30,7 +32,7 @@ print(sys.path)
 sys.path.append("/blue/bartlett/z.windom/LGMRES/bindings")
 sys.path.append("/home/z.windom/.conda/envs/p4dev/lib/python3.8/site-packages/pyamg")
 print(sys.path)
-import LGMRES
+#import LGMRES
 import pyamg
 
 
@@ -213,7 +215,7 @@ def Get_CorrVec(R,residual,theta,H0,matrixDim,i,target=0,H0def='diag'):
     print('@Get_CorrVec: inserting into position ',i, 'of R vec')
     print('@Get_CorrVec: Using theta ',theta)
     if H0def=='diag' or H0def=='PHP':
-        R[:,i]=SimpleT0(residual,theta,H0,matrixDim,blockDim,target,H0def)
+        R[:,i]=SimpleT0(residual,theta,H0,matrixDim,1,target,H0def)
     else:
         print('Do not have this H0def yet built into Get_CorrVec')
         sys.exit()
@@ -516,11 +518,13 @@ def Run_DavidsonBWPT(Amat, matrixDim, blockDim,outputFileName, p=np.asarray([]),
     # This is essentially the first step of the algorithm. 
     if p.size==0:
         p,theta,lowestElements = Get_p(Amat,matrixDim,blockDim,True)#,iterH0def)
-    else:
+    elif theta==None:
         theta=(p.T@Amat)@p
+    #else:
+    #    theta=(p.T@Amat)@p
     H0,V=Get_H0(Amat,p,matrixDim,blockDim,H0def)
     print('Example H0: ',H0[:4,:4])
-    print(p[350,0])
+    #print(p[350,0])
     R,HR=Get_InitialSpace(Amat,p,theta,matrixDim,blockDim,maxItr)
     testOUT=(R[:,0].T@Amat)@R[:,0]
     #print('Starting HR[:,0]:',np.allclose(testOUT,np.dot(R[:,0],HR[:,0])))
@@ -678,7 +682,7 @@ def Run_DavidsonBWPT(Amat, matrixDim, blockDim,outputFileName, p=np.asarray([]),
         pltConvergenceInfo([sortedInfo],pltTitle=outputFileName,diagStratLabels=['standard Davidson'],pltResid=True)
                 
                 
-    return overallMatMul,thetaRecord,residRecord,SSevalList
+    return overallMatMul,thetaRecord,residRecord,SSevalList,new_p
 
         
         
