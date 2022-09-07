@@ -35,8 +35,8 @@ def Run_RedefineH(Amat,dim,maxitr,p=np.asarray([]),TOL=10**-8):
         u,v=np.linalg.eig(Hhat)
         print('Sorted roots of Hhat:', np.sort(u)[:6])
         # Solve Hhat exactly with Davidson
-        matmul,thetas,resids,SSevals,eVec=Run_DavidsonBWPT(Hhat, dim, 1 ,'temp.txt', p,theta,TOL=10**-6,\
-                     maxItr=5,solnCount=1,H0def='diag',highOresolvent=OrderedDict(),invBOOL="QHQ",\
+        matmul,thetas,resids,SSevals,eVec=Run_DavidsonBWPT(Hhat, dim, 1 ,'temp.txt', p,theta,TOL=10**-10,\
+                     maxItr=10,solnCount=1,H0def='diag',highOresolvent=OrderedDict(),invBOOL="QHQ",\
                     numSSVecs_keep=15,maxSSvecs=50,iterH0def="diag",spectrum='lowest')
 
 
@@ -45,6 +45,7 @@ def Run_RedefineH(Amat,dim,maxitr,p=np.asarray([]),TOL=10**-8):
         theta=(p.T @Hhat)@p
         print('test of <p|Hhat|p>: ', (p.T @Hhat)@p)
         print('resids: ', resids)
+        print('matmuls:',matmul)
         p=np.reshape(p,(dim,1))
         print('shape of p: ', np.shape(p))
         np.reshape(p,(dim,1))
