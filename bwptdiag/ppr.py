@@ -19,53 +19,55 @@ def createModelMatrix(matrixDim, sparsity):
 
 
 def computeRHR(fullSpace, H, HDim, order, blockDim):
-    #     overlap=fullSpace[:,:order+1].T @ fullSpace[:,:order+1]
-    #     #print('overlap',overlap)
-    #     s,u=LA.eig(overlap)
-    #     #print('little s:',s)
-    #     sDiag=np.zeros((order+1,order+1))#
-    #     np.fill_diagonal(sDiag,s)
-    #     for i in range(order+1):
-    #         sDiag[i,i]=1.0/np.sqrt(sDiag[i,i])
-    #     #print('sdiag:',sDiag)
+         overlap=fullSpace[:,:order+1].T @ fullSpace[:,:order+1]
+         #print('overlap',overlap)
+         s,u=LA.eig(overlap)
+         #print('little s:',s)
+         sDiag=np.zeros((order+1,order+1))#
+         np.fill_diagonal(sDiag,s)
+         for i in range(order+1):
+             sDiag[i,i]=1.0/np.sqrt(sDiag[i,i])
+         #print('sdiag:',sDiag)
 
-    #     X=u.T @ sDiag
-    #     X=X @ u
-    #     RHR=(fullSpace[:,:order+1].T @ H) @ fullSpace[:,:order+1]
-    #     Hprime=X.T @ RHR
-    #     Hprime=Hprime @ X
-    #     try:
-    #         roots,vecs=LA.eig(Hprime)
-    #         indx=roots.argsort()
-    #         theta=roots[indx]
-    #         vecs=vecs[:,indx] # these are C' ; must convert back to C, ie XC'=C
-    #         transformedVecs=X@vecs # this is the back transform step
-    #         usableRoots=[ elem for elem in theta if elem > 0.15 ]
-    #         usableIndx=[x for x in range(len(theta)) if theta[x] > 0.15]
-    #         #print('Usable roots from <R|H|R>: ',usableRoots)
-    #         #print('Usable vecs from <R|H|R>: ',transformedVecs[:,usableIndx])
-    #     except np.linalg.LinAlgError as err:
-    #         print('inf or NaN inside the code performing delta^(-1/2)Hdelta^(-1/2) diagonalization!!')
-    #         print("Formal error message: ")
-    #         print(err)
+         X=u.T @ sDiag
+         X=X @ u
+         RHR=(fullSpace[:,:order+1].T @ H) @ fullSpace[:,:order+1]
+         Hprime=X.T @ RHR
+         Hprime=Hprime @ X
+         try:
+             roots,vecs=LA.eig(Hprime)
+             indx=roots.argsort()
+             theta=roots[indx]
+             vecs=vecs[:,indx] # these are C' ; must convert back to C, ie XC'=C
+             transformedVecs=X@vecs # this is the back transform step
+             usableRoots=[ elem for elem in theta if elem > 0.15 ]
+             usableIndx=[x for x in range(len(theta)) if theta[x] > 0.15]
+             #print('Usable roots from <R|H|R>: ',usableRoots)
+             #print('Usable vecs from <R|H|R>: ',transformedVecs[:,usableIndx])
+         except np.linalg.LinAlgError as err:
+             print('inf or NaN inside the code performing delta^(-1/2)Hdelta^(-1/2) diagonalization!!')
+             print("Formal error message: ")
+             print(err)
+            
+         return theta, vecs
 
     ## test orthogonalizing fullspace
     # qq,r=LA.qr(fullSpace[:,:order+1])
     # print('orthogonalized contribuition to |R>:',qq[:,order])
     # print('shape: ',np.shape(fullSpace[:,:blockDim+order+1]),np.shape(H))
-    RHR = (fullSpace.T @ H) @ fullSpace  # (qq.T @ H) @ qq
-    print("RHR: \n", RHR)
-    print("RHR size: ", RHR.size)
-    roots, vecs = LA.eig(RHR)
-    print("Roots from <R|H|R> via QR:", np.sort(roots))
-    indx = roots.argsort()
-    theta = roots[indx]
-    vecs = vecs[:, indx]
-    print("C_i vecs: ", vecs)
-    usableRoots = [elem for elem in theta if elem > 0.15]
-    usableIndx = [x for x in range(len(theta)) if theta[x] > 0.15]
-    # print('C_i vecs: ',vecs[:,usableIndx])
-    return roots, vecs  # usableRoots,vecs[:,usableIndx]
+    #RHR = (fullSpace.T @ H) @ fullSpace  # (qq.T @ H) @ qq
+#    print("RHR: \n", RHR)
+#    print("RHR size: ", RHR.size)
+#    roots, vecs = LA.eig(RHR)
+#    print("Roots from <R|H|R> via QR:", np.sort(roots))
+#    indx = roots.argsort()
+#    theta = roots[indx]
+#    vecs = vecs[:, indx]
+#    print("C_i vecs: ", vecs)
+#    usableRoots = [elem for elem in theta if elem > 0.15]
+#    usableIndx = [x for x in range(len(theta)) if theta[x] > 0.15]
+#    # print('C_i vecs: ',vecs[:,usableIndx])
+#    return roots, vecs  # usableRoots,vecs[:,usableIndx]
 
 
 def extendPSpace(T0, V, p, order):
@@ -73,7 +75,7 @@ def extendPSpace(T0, V, p, order):
     T0V = np.matmul(T0, Vp)
     tmp = T0V  # @p
     print("inside extendPSpace order: ", order)
-    for i in range(1, order + 1):
+    for i in range(1, order+1 ):
         tmp = np.matmul(V, tmp)
         tmp = np.matmul(T0, tmp)
 
@@ -324,19 +326,22 @@ def runRedefiningH0_lowOrder(
 
             print("order after exiting inner loop: ", order)
             #             print('Current fullSpace: B4 orthogonalization',fullSpace[:,:order+1])
-            print("FS: ", fullSpace[:, : var + 1])
             # Orthogonalize all vectors in 'fullSpace'
-            qq, r = LA.qr(fullSpace[:, : var + 1])
+            #qq, r = LA.qr(fullSpace[:, : var + 1])
 
             #             print('shape of QR decomp output for orthogonal FS: ',np.shape(qq))
             #             #fullSpace[:,:order+1]=qq
 
-            fullSpaceTMP = qq
+            #fullSpaceTMP = qq
             ##
             #             print('Current fullSpace: after orthogonalization',fullSpaceTMP[:,:order+1])
-            ritzRoots, ritzVecs = computeRHR(qq, H, Hdim, order, blockDim)
+            #print('fullSpace:', fullSpace[:,:order+3])
+            #sys.exit()
+            ritzRoots, ritzVecs = computeRHR(fullSpace, H, Hdim, order+1, blockDim)
             #            print('ritzVecs:',ritzVecs)
             print("ritzRoots:", np.sort(ritzRoots))
+            eVec=fullSpace[:,:var+1]@ritzVecs[:,0] #qq[:,:var+1]@ritzVecs[:,0]
+            print('test of eVec:', eVec.T @ (H@eVec))
             # calcContribs(H,fullSpace,Hdim)
 
             fatPhi = np.zeros((Hdim, blockDim))
@@ -345,20 +350,19 @@ def runRedefiningH0_lowOrder(
 
             for zz in range(blockDim):
                 fatPhi[:, zz] = (
-                    qq[:, : var + 1] @ ritzVecs[:, zz]
+                    fullSpace[:, : var + 1] @ ritzVecs[:, zz]
                 )  # approx to the lowest energy eigenvector
                 fullSpace[:, zz] = fatPhi[:, zz]
 
-            print("fatPhi: ", fatPhi)
             p = fatPhi
             projFatPhi = np.zeros((Hdim, Hdim))
             print("Check overlap <fatPhi|fatPhi>:", fatPhi.T @ fatPhi)
             projFatPhi = fatPhi @ fatPhi.T  # np.outer(fatPhi,fatPhi)#p@p.T#
 
             # Redefine H0 w.r.t the original H0 define prior to any iterations
-            H0 = np.zeros((Hdim, Hdim))
+            #H0 = np.zeros((Hdim, Hdim))
 
-            H0 = (projFatPhi @ H0bkup) @ projFatPhi
+            #H0 = eVec@(H0bkup@eVec)#(projFatPhi @ H0bkup) @ projFatPhi
             V = H - H0
 
             # Test that after I-projFatPhi==projQ, then projQ+projFatPhi == I
@@ -387,11 +391,13 @@ def runRedefiningH0_lowOrder(
                     :, rootTarget
                 ]  # fullSpace[:,:order+1]@ritzVecs[:,0]
                 np.fill_diagonal(tmpRoots, np.sort(ritzRoots)[rootTarget])
-                residualVec = (H - tmpRoots) @ transformedVec  # [:,rootTarget-1]
+                residualVec = (H - np.sort(ritzRoots)[0]*np.eye(Hdim)) @ fatPhi[:,0]  # [:,rootTarget-1]
                 normResid = LA.norm(residualVec)
                 print("Norm of rootTarget residual inside sinlge vec algo: ", normResid)
                 print("tolerance is: ", TOL, normResid < TOL)
                 residuals.append(normResid)
+                #import sys
+                #sys.exit()
                 if normResid < TOL:
                     print(
                         "\n\n\n Converged in micro-iteration: ",
