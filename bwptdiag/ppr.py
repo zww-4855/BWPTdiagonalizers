@@ -21,7 +21,7 @@ def createModelMatrix(matrixDim, sparsity):
     return Amat
 
 
-def computeRHR(fullSpace, H, HDim, order, blockDim):
+def computeRHR(fullSpace, HR, HDim, order, blockDim):
          overlap=fullSpace[:,:order+1].T @ fullSpace[:,:order+1]
          #print('overlap',overlap)
          s,u=LA.eig(overlap)
@@ -34,7 +34,10 @@ def computeRHR(fullSpace, H, HDim, order, blockDim):
 
          X=u.T @ sDiag
          X=X @ u
-         RHR=(fullSpace[:,:order+1].T @ H) @ fullSpace[:,:order+1]
+         RHR=fullSpace[:,:order+1].T @ HR[:,:order+1]
+         print('RHR:',RHR)
+         tmpr,tmrv = np.linalg.eig(RHR)
+         print('sort tmp roots:', np.sort(tmpr))
          Hprime=X.T @ RHR
          Hprime=Hprime @ X
          try:
@@ -240,6 +243,28 @@ def createT0_projQ(projQ, qDim, H0Dim, eps, H0, order, H0def):  # qDim>0
     return projQ, sumMatrix
 
 
+def SimpleT0(residual, theta, H0, matrixDim, blockDim, target=0, H0def="diag"):
+    corrVec = np.zeros((matrixDim,))
+    QH0Q = np.zeros((matrixDim, matrixDim))
+    print("shapes: ", np.shape(corrVec), np.shape(residual))
+    if H0def == "diag":
+        QH0Q = H0
+    elif H0def == "PHP":
+        print("continue")
+
+    for zzz in range(matrixDim):
+        xxx = theta - QH0Q[zzz][zzz]
+        # xxx=-1.0*xxx
+        # print('shape of theta: ',np.shape(theta),np.shape(QH0Q))
+        if abs(xxx) < 0.0001:
+            xxx = math.copysign(0.0001, xxx)
+        corrVec[zzz,] = (
+            residual[zzz] / xxx
+        )
+
+    return corrVec
+
+
 def runRedefiningH0_lowOrder(
     H, Hdim, rootTarget, maxorder, blockDim, maxiter, H0def, TOL
 ):
@@ -262,7 +287,7 @@ def runRedefiningH0_lowOrder(
 
         # print('H0:',H0)
         fullSpace = np.zeros((Hdim, Hdim))
-        testfullSpace = np.zeros((Hdim, Hdim))
+        HR = np.zeros((Hdim, Hdim))
         # print('shape of FS and p',np.shape(fullSpace[:,0]),np.shape(p))
         fullSpace[:, np.arange(0, blockDim)] = p
         order = 0
@@ -296,22 +321,15 @@ def runRedefiningH0_lowOrder(
                 if (
                     rootTarget != -1
                 ):  ## rootTarget intends to target particular root, ie 0th, 1st, 2nd, etc...
-                    _, T0 = createT0_projQ(
-                        projQ, qDim, Hdim, eps[rootTarget], H0, order, H0def
-                    )
-                    pertVec = extendPSpace(
-                        T0, H, p[:, rootTarget], order
-                    )  # first order correction
-                    # order=order+1
-                    #                 print('pertVec:',pertVec)
-                    print('norm of pertVec: ', np.linalg.norm(pertVec))
-                    pertVec=pertVec/np.linalg.norm(pertVec)
-                    pertVec = np.reshape(pertVec, (Hdim, 1))
-                    #                 print('shape of pertVec*****:',np.shape(pertVec))
-                    #                 print('shape of fullSpace: ',np.shape(fullSpace))
+                    HR[:,order]=H@fullSpace[:,order]
+                    scalarResid=fullSpace[:,0].T@HR[:,order]
+                    print('scalar Resid is: ' ,scalarResid)
+                    tmpResid=HR[:,order]-fullSpace[:,0]*scalarResid
+                    fullSpace[:,order+1]=SimpleT0(tmpResid,eps,H0,Hdim,blockDim,0,H0def)
+                    fullSpace=GramSchmidt(fullSpace,Hdim,order+2)
+                    #fullSpace[:,order+1]=fullSpace[:,order+1]/np.linalg.norm(fullSpace[:,order+1]) 
+
                     var = blockDim + order  # i*blockDim+order
-                    print("var storing fS locaiton is: ", var)
-                    fullSpace[:, [var]] = pertVec
 
                 else:  ## if rootTarget==-1, then run **BLOCK** Algo
                     blockIndx = 0
@@ -348,10 +366,14 @@ def runRedefiningH0_lowOrder(
             ##
             #             print('Current fullSpace: after orthogonalization',fullSpaceTMP[:,:order+1])
             #print('fullSpace:', fullSpace[:,:order+3])
-            #sys.exit()
-            ritzRoots, ritzVecs = computeRHR(fullSpace, H, Hdim, order+1, blockDim)
+            print('fullSpace', fullSpace[:,:order+2])
+            HR[:,order+1]=H@fullSpace[:,order+1]
+            print('HR:',HR[:,:order+2])
+            
+            ritzRoots, ritzVecs = computeRHR(fullSpace, HR, Hdim, order+1, blockDim)
             #            print('ritzVecs:',ritzVecs)
             print("ritzRoots:", np.sort(ritzRoots))
+            sys.exit()
             eVec=fullSpace[:,:var+1]@ritzVecs[:,0] #qq[:,:var+1]@ritzVecs[:,0]
             print('test of eVec:', eVec.T @ (H@eVec))
             # calcContribs(H,fullSpace,Hdim)
