@@ -4,6 +4,9 @@ from numpy import linalg as LA
 import sys
 import math
 
+from bwptdiag.InitializeBWPT import *
+from bwptdiag.NumericalRoutines import *
+from bwptdiag.IOhandling import *
 
 def createModelMatrix(matrixDim, sparsity):
     # matrixDim=10
@@ -250,21 +253,28 @@ def runRedefiningH0_lowOrder(
     unconvergedList = np.arange(0, blockDim)
     for xx in range(1):
         # print('Searching for root number: ',xx,rootNumber[xx])
-        p, q, H0, V, eps = defineAllVariables(H, Hdim, blockDim, H0def)
+        #p, q, H0, V, eps = defineAllVariables(H, Hdim, blockDim, H0def)
+
+        p, eps, lowestElements = Get_p(H, Hdim, blockDim, True)
+        H0, V = Get_H0(H, p, Hdim, blockDim, H0def)
+
+
+
         # print('H0:',H0)
         fullSpace = np.zeros((Hdim, Hdim))
         testfullSpace = np.zeros((Hdim, Hdim))
         # print('shape of FS and p',np.shape(fullSpace[:,0]),np.shape(p))
         fullSpace[:, np.arange(0, blockDim)] = p
         order = 0
-        qDim = Hdim - blockDim
+        #qDim = Hdim - blockDim
         Hbkup = H
         H0bkup = H0
-        qBKUP = q
+        #qBKUP = q
         # print('initial guess H0: ',eps)
         finalEps = []
         tmpRoots = np.zeros((Hdim, Hdim))
-        projQ = q @ q.T
+        #projQ = q @ q.T
+        projQ=np.eye(Hdim)-np.outer(p,p)
         residuals = []
         convergedIndx = []
         # Macro-iteration of the redefineH0 algo
@@ -294,6 +304,8 @@ def runRedefiningH0_lowOrder(
                     )  # first order correction
                     # order=order+1
                     #                 print('pertVec:',pertVec)
+                    print('norm of pertVec: ', np.linalg.norm(pertVec))
+                    pertVec=pertVec/np.linalg.norm(pertVec)
                     pertVec = np.reshape(pertVec, (Hdim, 1))
                     #                 print('shape of pertVec*****:',np.shape(pertVec))
                     #                 print('shape of fullSpace: ',np.shape(fullSpace))
