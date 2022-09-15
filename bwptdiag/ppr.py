@@ -22,39 +22,13 @@ def createModelMatrix(matrixDim, sparsity):
 
 
 def computeRHR(fullSpace, HR, HDim, order, blockDim):
-         overlap=fullSpace[:,:order+1].T @ fullSpace[:,:order+1]
-         #print('overlap',overlap)
-         s,u=LA.eig(overlap)
-         #print('little s:',s)
-         sDiag=np.zeros((order+1,order+1))#
-         np.fill_diagonal(sDiag,s)
-         for i in range(order+1):
-             sDiag[i,i]=1.0/np.sqrt(sDiag[i,i])
-         #print('sdiag:',sDiag)
-
-         X=u.T @ sDiag
-         X=X @ u
          RHR=fullSpace[:,:order+1].T @ HR[:,:order+1]
          print('RHR:',RHR)
-         tmpr,tmrv = np.linalg.eig(RHR)
-         print('sort tmp roots:', np.sort(tmpr))
-         Hprime=X.T @ RHR
-         Hprime=Hprime @ X
-         try:
-             roots,vecs=LA.eig(Hprime)
-             indx=roots.argsort()
-             theta=roots[indx]
-             vecs=vecs[:,indx] # these are C' ; must convert back to C, ie XC'=C
-             transformedVecs=X@vecs # this is the back transform step
-             usableRoots=[ elem for elem in theta if elem > 0.15 ]
-             usableIndx=[x for x in range(len(theta)) if theta[x] > 0.15]
-             #print('Usable roots from <R|H|R>: ',usableRoots)
-             #print('Usable vecs from <R|H|R>: ',transformedVecs[:,usableIndx])
-         except np.linalg.LinAlgError as err:
-             print('inf or NaN inside the code performing delta^(-1/2)Hdelta^(-1/2) diagonalization!!')
-             print("Formal error message: ")
-             print(err)
-            
+         roots,vecs = np.linalg.eig(RHR)
+         print('sort tmp roots:', np.sort(roots))
+         indx = roots.argsort()
+         theta = roots[indx]
+         vecs = vecs[:, indx]
          return theta, vecs
 
     ## test orthogonalizing fullspace
@@ -264,6 +238,12 @@ def SimpleT0(residual, theta, H0, matrixDim, blockDim, target=0, H0def="diag"):
 
     return corrVec
 
+def calcResid(fullSpace,H,var,ritzVecs,ritzRoots):
+    eVec=fullSpace[:,:var+1]@ritzVecs[:,0]
+    resid=H@eVec - ritzRoots[0]*eVec
+    normResid=np.linalg.norm(resid)
+    print('resid: ', normResid)
+    return normResid
 
 def runRedefiningH0_lowOrder(
     H, Hdim, rootTarget, maxorder, blockDim, maxiter, H0def, TOL
@@ -311,6 +291,7 @@ def runRedefiningH0_lowOrder(
             # Purpose::: builds 'maxorder' correction vectors, then appends it to 'fullSpace'
             #            The building of correction vectors applies to either one 'rootTarget'
             #            of if 'rootTarget==1', then the **BLOCK** algorithm is performed
+            var=0
             for order in range(0, maxorder):
                 print(
                     "Inside inner loop with current order: ",
@@ -322,6 +303,8 @@ def runRedefiningH0_lowOrder(
                     rootTarget != -1
                 ):  ## rootTarget intends to target particular root, ie 0th, 1st, 2nd, etc...
                     HR[:,order]=H@fullSpace[:,order]
+
+
                     scalarResid=fullSpace[:,0].T@HR[:,order]
                     print('scalar Resid is: ' ,scalarResid)
                     tmpResid=HR[:,order]-fullSpace[:,0]*scalarResid
@@ -329,30 +312,14 @@ def runRedefiningH0_lowOrder(
                     fullSpace=GramSchmidt(fullSpace,Hdim,order+2)
                     #fullSpace[:,order+1]=fullSpace[:,order+1]/np.linalg.norm(fullSpace[:,order+1]) 
 
+
+                    ritzRoots, ritzVecs = computeRHR(fullSpace, HR, Hdim, order, blockDim)
+                    print('TMP ROOTS: ', ritzRoots)
+
+                    resid=calcResid(fullSpace,H,var,ritzVecs,ritzRoots)
+                    print('TMP RESID: ', resid)
                     var = blockDim + order  # i*blockDim+order
 
-                else:  ## if rootTarget==-1, then run **BLOCK** Algo
-                    blockIndx = 0
-                    blockVar = blockDim - len(convergedIndx)
-                    for aa in range(blockDim):
-                        if (
-                            aa in convergedIndx
-                        ):  # dont expect this vector as its converged already
-                            continue
-                        else:
-                            _, T0 = createT0_projQ(
-                                projQ, qDim, Hdim, eps[blockIndx], H0, order, H0def
-                            )
-                            pertVec = extendPSpace(
-                                T0, H, p[:, blockIndx], order
-                            )  # first order correction
-                            pertVec = np.reshape(pertVec, (Hdim, 1))
-                            var = blockDim + order * blockVar + blockIndx
-                            blockIndx = blockIndx + 1
-                            print("var storing fS locaiton is: ", var)
-                            fullSpace[
-                                :, [blockDim + order * blockVar + blockIndx]
-                            ] = pertVec
 
             print("order after exiting inner loop: ", order)
             #             print('Current fullSpace: B4 orthogonalization',fullSpace[:,:order+1])
@@ -373,115 +340,16 @@ def runRedefiningH0_lowOrder(
             ritzRoots, ritzVecs = computeRHR(fullSpace, HR, Hdim, order+1, blockDim)
             #            print('ritzVecs:',ritzVecs)
             print("ritzRoots:", np.sort(ritzRoots))
-            sys.exit()
+            #sys.exit()
             eVec=fullSpace[:,:var+1]@ritzVecs[:,0] #qq[:,:var+1]@ritzVecs[:,0]
             print('test of eVec:', eVec.T @ (H@eVec))
             # calcContribs(H,fullSpace,Hdim)
-
-            fatPhi = np.zeros((Hdim, blockDim))
-            eps = np.sort(ritzRoots)[:blockDim]  # [rootTarget-1]#-0.01
-            finalEps.append(eps)
-
-            for zz in range(blockDim):
-                fatPhi[:, zz] = (
-                    fullSpace[:, : var + 1] @ ritzVecs[:, zz]
-                )  # approx to the lowest energy eigenvector
-                fullSpace[:, zz] = fatPhi[:, zz]
-
-            p = fatPhi
-            projFatPhi = np.zeros((Hdim, Hdim))
-            print("Check overlap <fatPhi|fatPhi>:", fatPhi.T @ fatPhi)
-            projFatPhi = fatPhi @ fatPhi.T  # np.outer(fatPhi,fatPhi)#p@p.T#
-
-            # Redefine H0 w.r.t the original H0 define prior to any iterations
-            #H0 = np.zeros((Hdim, Hdim))
-
-            #H0 = eVec@(H0bkup@eVec)#(projFatPhi @ H0bkup) @ projFatPhi
-            V = H - H0
-
-            # Test that after I-projFatPhi==projQ, then projQ+projFatPhi == I
-            testI = projFatPhi + projQ
-            realI = np.identity(Hdim)
-            # print('Checking allclose for new projP+projQ=I : ',np.allclose(testI,realI))
-
-            testProjQ = realI - projFatPhi
-            testI = projFatPhi + testProjQ
-            #            print('Checking allclose for redefined projP&&projQ; aka new projP+projQ==I where \n projP=fatPhi @ fatPhi.T \n new projQ=I-projP \n ',np.allclose(testI,realI))
-            projQ = realI - projFatPhi
-
-            #             combinedV=(projFatPhi@H)@projQ
-            #             combinedV=combinedV+(projQ@H)@projFatPhi
-            #             combinedV=combinedV+(projQ@H)@projQ
-            #             print('Check V=H-H0 ==? V=PHQ+QHP+QHQ',np.allclose(V,combinedV))
-            #            print('V=H-H0:',V)
-            #            print('V=PHQ+QHP+QHQ:',combinedV)
-            #            combinedH=combinedV+(projFatPhi@H)@projFatPhi
-            #            print('Check full H ==? newly defined PHP+PHQ+QHP+QHQ',np.allclose(H,combinedH))
-            #            print('Redefined H0: \n',H0)
-
-            # Check for convergence criteria
-            if rootTarget != -1:  # we are targeting a specific root
-                transformedVec = fatPhi[
-                    :, rootTarget
-                ]  # fullSpace[:,:order+1]@ritzVecs[:,0]
-                np.fill_diagonal(tmpRoots, np.sort(ritzRoots)[rootTarget])
-                residualVec = (H - np.sort(ritzRoots)[0]*np.eye(Hdim)) @ fatPhi[:,0]  # [:,rootTarget-1]
-                normResid = LA.norm(residualVec)
-                print("Norm of rootTarget residual inside sinlge vec algo: ", normResid)
-                print("tolerance is: ", TOL, normResid < TOL)
-                residuals.append(normResid)
-                #import sys
-                #sys.exit()
-                if normResid < TOL:
-                    print(
-                        "\n\n\n Converged in micro-iteration: ",
-                        (order + 1) * (i + 1),
-                        " macro-iteration:",
-                        i + 1,
-                    )
-                    print(
-                        "Converged root ",
-                        rootTarget,
-                        " :",
-                        np.sort(ritzRoots)[rootTarget],
-                    )
-                    return finalEps, residuals, convergedIndx
-
-            else:  # we are in a block scheme
-                tmpResid = []
-                for zzz in range(blockDim):
-                    if zzz in convergedIndx:  # don't incorporate converged roots
-                        continue
-                    transformedVec = fatPhi[
-                        :, zzz
-                    ]  # fullSpace[:,:order+1]@ritzVecs[:,0]
-                    np.fill_diagonal(tmpRoots, np.sort(ritzRoots)[zzz])
-                    residualVec = (H - tmpRoots) @ transformedVec  # [:,rootTarget-1]
-                    normResid = LA.norm(residualVec)
-                    print("Norm of residual: ", normResid)
-                    tmpResid.append(normResid)
-                    if normResid < TOL:
-                        print(
-                            "\n\n\n Converged on iteration: ",
-                            (i + 1) * order,
-                            rootTarget,
-                            zzz,
-                        )
-                        print(
-                            "Converged root ",
-                            rootTarget,
-                            " :\n\n\n",
-                            np.sort(ritzRoots)[zzz],
-                        )
-                        convergedIndx.append(zzz)
-                        fullSpace[:, zzz] = fatPhi[:, zzz]
-                residuals.append(tmpResid)
-                if len(convergedIndx) == blockDim:
-                    return finalEps, residuals, convergedIndx
-
+            resid=H@eVec - ritzRoots[0]*eVec
+            normResid=np.linalg.norm(resid)
+            print('resid: ', normResid)
+            sys.exit()
             order = 0
-            # if rootTarget!=-1:
-            #    if len(convergedIndx)==1:
-            #        return finalEps,residuals,convergedIndx
 
     return finalEps, residuals, convergedIndx
+
+
