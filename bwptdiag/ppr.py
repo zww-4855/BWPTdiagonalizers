@@ -318,6 +318,8 @@ def runRedefiningH0_lowOrder(
 
                     resid=calcResid(fullSpace,H,var,ritzVecs,ritzRoots)
                     print('TMP RESID: ', resid)
+                    residuals.append(resid)
+                    finalEps.append(ritzRoots[0])
                     var = blockDim + order  # i*blockDim+order
 
 
@@ -347,9 +349,13 @@ def runRedefiningH0_lowOrder(
             resid=H@eVec - ritzRoots[0]*eVec
             normResid=np.linalg.norm(resid)
             print('resid: ', normResid)
-            sys.exit()
+            residuals.append(normResid)
+            finalEps.append(ritzRoots[0])
             order = 0
 
-    return finalEps, residuals, convergedIndx
+
+            print('final Eps: ', finalEps)
+            print('final resids: ', residuals)
+    return finalEps, residuals
 
 

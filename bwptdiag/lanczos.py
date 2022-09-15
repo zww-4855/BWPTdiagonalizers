@@ -138,7 +138,7 @@ def Run_Lanczos(
             ResidList.append(np.asarray(beta))
             print("Initial estimate of root: ", alpha)
             print("Initial norm: ", beta)
-
+            SSevalList.append([alpha])
         # Construct subspace matrix, Tk, diagonalize it, extract roots/vecs, build real residual,
         # then test for convergence of ||<r|r>||
         if i != 1:

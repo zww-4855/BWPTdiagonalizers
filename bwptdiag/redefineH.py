@@ -13,12 +13,15 @@ from bwptdiag.davidson import *
 
 
 def Run_RedefineH(Amat, dim, maxitr, p=np.asarray([]), TOL=10**-8):
-    R = np.zeros((dim, maxitr + 2))
-    HR = np.zeros((dim, maxitr))
+    R = np.zeros((dim, 6))#maxitr + 2))
+    HR = np.zeros((dim, 6))#maxitr))
     if p.size == 0:
         blockDim = 1
         p, theta, lowestElements = Get_p(Amat, dim, blockDim, True)
 
+
+    R[:,0]=p[:,0]
+    HR[:,0]=Amat@p[:,0]
     projP = np.zeros((dim, dim))
     projQ = np.eye(dim)
     # Construct P
@@ -49,7 +52,7 @@ def Run_RedefineH(Amat, dim, maxitr, p=np.asarray([]), TOL=10**-8):
             p,
             theta,
             TOL=10**-10,
-            maxItr=10,
+            maxItr=3,
             solnCount=1,
             H0def="diag",
             highOresolvent=OrderedDict(),
@@ -62,6 +65,7 @@ def Run_RedefineH(Amat, dim, maxitr, p=np.asarray([]), TOL=10**-8):
 
         # normalize eVec, set equal to p
         p = eVec / np.linalg.norm(eVec)
+
         theta = (p.T @ Hhat) @ p
         print("test of <p|Hhat|p>: ", (p.T @ Hhat) @ p)
         print("resids: ", resids)
