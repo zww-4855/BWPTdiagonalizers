@@ -50,7 +50,7 @@ def Get_Mk(
     i=1,
     rootTarget=0,
     convgVecs=np.array([]),
-    shift=0.25,
+    shift=0.1,
 ):
     if customMk.size != 0:
         if i == 1:
@@ -352,7 +352,6 @@ def Run_PrecondLanczos(
                 i,
                 rootTarget,
                 convgVecs,
-                shift=0.0,
             )  # Mk is approx to (H-E)
             print("mk diag", np.diag(Mk))
             Lk = Get_CholeskyFactMk(Mk, matrixDim, QHQapprox, H0def)  # Mk=Lk@Lk.T
