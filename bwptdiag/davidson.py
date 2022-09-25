@@ -619,6 +619,21 @@ def Get_BWPT_Expansion(
     return corrVec, matmuls
 
 
+def Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H):
+    print('check <p|H|p> is correct:',(new_p.T@H)@new_p == theta_p)
+    # get (H_0 - E_0)^-1 |r>
+    shifted_resid=-1.0*SimpleT0(residual,theta_p,H0,matrixDim,1)
+
+    # get (H_0 - E_0)^-1 |p>
+    shifted_p=-1.0*SimpleT0(new_p,theta_p,H0,matrixDim,1)
+
+    scalar_num=new_p.T@shifted_resid
+    scalar_denom=new_p.T@shifted_p
+    scalar=scalar_num/scalar_denom
+    print('scalar is: ', scalar)
+    sys.exit()
+    return scalar*new_p
+
 def Run_DavidsonBWPT(
     Amat,
     matrixDim,
@@ -775,6 +790,9 @@ def Run_DavidsonBWPT(
                 R = Get_CorrVec(
                     R, residual, theta_p, H0, matrixDim, target + i + 1, 0, H0def
                 )
+                if iterH0def == 'Olsen':
+                    olsenCorrVec=Get_OlsenVec(new_p,residual,H0,theta_p)
+                    R[:,target+i+1]+=olsenCorrVec
 
             # Orthonormalize the subspace vectors in R, contract the latest R-vector
             # with the Hamiltonian, then compute and diagonalize <R|H|R>
