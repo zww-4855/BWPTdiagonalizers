@@ -632,7 +632,10 @@ def Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H):
     scalar=scalar_num/scalar_denom
     print('scalar is: ', scalar)
     sys.exit()
-    return scalar*new_p
+
+    # get (E - H0)^-1* scalar * |p>
+    olsenVec=SimpleT0(scalar*new_p, theta_p,H0,matrixDim,1)
+    return -1.0*olsenVec
 
 def Run_DavidsonBWPT(
     Amat,
@@ -791,7 +794,7 @@ def Run_DavidsonBWPT(
                     R, residual, theta_p, H0, matrixDim, target + i + 1, 0, H0def
                 )
                 if iterH0def == 'Olsen':
-                    olsenCorrVec=Get_OlsenVec(new_p,residual,H0,theta_p)
+                    olsenCorrVec=Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H)
                     R[:,target+i+1]+=olsenCorrVec
 
             # Orthonormalize the subspace vectors in R, contract the latest R-vector
