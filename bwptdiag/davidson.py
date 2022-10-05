@@ -31,9 +31,9 @@ from collections import deque
 print(os.getcwd())
 print(sys.path)
 sys.path.append("/blue/bartlett/z.windom/LGMRES/bindings")
-sys.path.append("/home/z.windom/.conda/envs/p4dev/lib/python3.8/site-packages/pyamg")
+#sys.path.append("/home/z.windom/.conda/envs/p4dev/lib/python3.8/site-packages/pyamg")
 print(sys.path)
-# import LGMRES
+import LGMRES
 import pyamg
 
 
@@ -51,15 +51,14 @@ def linearEqSolnPRECOND(
     PspaceDim,
     b,
     normResid,
-    maxiter,
+    microiter,
     matrixVecMultiplies,
 ):
-    # must construct A == E-QH0 == E - H0 + PH0
-    ## choose different guess p
-
+    print('check <p|H|p> inside JACOBI:', (Phi.T@H)@Phi,guessE)
     E = guessE
     projP = np.zeros((Hdim, Hdim))
-    print("length of full P space: ", len(Phi))
+
+    # Determine whether projP vector is single, or multireference
     if len(Phi) == Hdim:
         Phi_p = np.reshape(Phi, (Hdim, 1))
         projP = projP + Phi_p @ Phi_p.T
@@ -68,25 +67,15 @@ def linearEqSolnPRECOND(
             p_i = Phi.popleft()
             p_i = p_i / np.linalg.norm(p_i)
             Phi_p = np.reshape(p_i, (Hdim, 1))
-            print("first 5 of p_i", Phi_p[:5, 0])
             projP = projP + Phi_p @ Phi_p.T
 
     projQ = np.eye(Hdim) - projP
     if invBOOL == "QHQ":
         diffH = H - np.eye(Hdim) * guessE
         A = (projQ @ diffH) @ projQ
-        # print(guessE,np.diag(np.diag(H)),np.dot(Phi[:],Phi[:]))
-        print("residual RHS: ", b[:5])
-        print("@linearEqSolnPRECOND: Solving for full QHQ ... \n")
-        # precondA=np.linalg.inv(np.diag(np.diag(H))-guessE*np.eye(Hdim))
 
-        # x=LGMRES.solve(A,b,M=precondA,tol=10**-5,maxiter=1,inner_m=5,outer_k=3)
         x00 = np.zeros((Hdim,))  # np.random.uniform(size=(Hdim))*(10**-10/Hdim)
-        x00[0] = 1.0
-        # x00=np.random.rand(Hdim,)
-        print("overlap of r: ", np.linalg.norm(b))
-        # xx=LGMRES.solve(A,b,tol=normResid*10**-4,x0=x00,maxiter=1,inner_m=15,outer_k=1)
-        print("CG tol: ", normResid * 1e-5)
+
         M = np.zeros((Hdim, Hdim))
         M = np.diag(np.diag(A))
         for zzz in range(Hdim):
@@ -95,26 +84,13 @@ def linearEqSolnPRECOND(
                 xxx = math.copysign(0.0001, xxx)
             M[zzz, zzz] = 1.0 / xxx
 
-            # inner_m=3, outer_k=3,
-        # xx,info=lin.lgmres(A,-b,maxiter=20,x0=x00,tol=normResid*1e-4,M=M)
-        # xx=LGMRES.solve(A,-b,tol=normResid*10**-4,x0=x00,maxiter=20)
-        # print('info: ',info)
-
-        # xx,info=lin.lgmres(A,-b,maxiter=20,x0=x00,tol=normResid*1e-5)
-        # 10 matrix-vector multiplies inside inner_m
-        H0rinv = np.eye(Hdim) * guessE - H0
-        for zzz in range(Hdim):
-            xxx = H0rinv[zzz][zzz]
-            if abs(xxx) < 0.0001:
-                xxx = math.copysign(0.0001, xxx)
-            H0rinv[zzz, zzz] = 1.0 / xxx
-
-        x0 = H0rinv @ b
-
-        xx = LGMRES.solve(
-            A, -b, maxiter=3, tol=normResid * 1e-2, outer_k=3, inner_m=5, M=M, x0=x0
+        xx,flag,matmuls = pyamg.krylov.gmres_mgs(
+            A, -b, x00, normResid*0.01,None,microiter+1,M #reorth=True,
         )
-        # print('lgmres info: ',info)
+        #xx=LGMRES.solve(A,-b,x00,M,normResid*0.01,1,4,1)
+        print('INVERT QHQ NEEDS', matmuls, flag, 'MATMULS \n\n\n\n\n')
+        matrixVecMultiplies+=matmuls
+        print('New total matmuls after QHQ inversion', matrixVecMultiplies)
         print(
             "Checking (E-QH0Q)*x == b aka (E-QH0Q)|r>=|psi>",
             np.allclose(A @ xx, -b[:, 0], rtol=10**-4, atol=10**-4),
@@ -493,6 +469,7 @@ def Initialize_LinearEqnSolv(
     residual,
     normResid,
     matrixVecMultiplies,
+    microiter
 ):
     print("Inverting the full resolvent operation", invBOOL)
     solnR, matrixVecMultiplies = linearEqSolnPRECOND(
@@ -506,7 +483,7 @@ def Initialize_LinearEqnSolv(
         PspaceDim,
         residual,
         normResid,
-        200,
+        microiter,
         matrixVecMultiplies,
     )
     print("returning from Initialize_linear eq solv")
@@ -626,12 +603,15 @@ def Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H):
 
     # get (H_0 - E_0)^-1 |p>
     shifted_p=-1.0*SimpleT0(new_p,theta_p,H0,matrixDim,1)
-
+    print(np.shape(shifted_p),np.shape(shifted_resid),np.shape(new_p))
+#    rowDim,colDim=np.shape(new_p)
+#    print('rowDim:',rowDim)
+#    p=new_p[:,0]
     scalar_num=new_p.T@shifted_resid
     scalar_denom=new_p.T@shifted_p
     scalar=scalar_num/scalar_denom
+    print('numerator/denom:',scalar_num,scalar_denom)
     print('scalar is: ', scalar)
-    sys.exit()
 
     # get (E - H0)^-1* scalar * |p>
     olsenVec=SimpleT0(scalar*new_p, theta_p,H0,matrixDim,1)
@@ -649,7 +629,7 @@ def Run_DavidsonBWPT(
     solnCount=1,
     H0def="diag",
     highOresolvent=OrderedDict(),
-    invBOOL="QHQ",
+    invBOOL="QH0Q",
     numSSVecs_keep=1,
     maxSSvecs=5,
     iterH0def="dynamic_QH0Q",
@@ -723,19 +703,11 @@ def Run_DavidsonBWPT(
             # if i in highOresolvent.keys() and normResid>10**-4:# and target==0:
             if iterH0def == "dynamic_QH0Q":  # and (i>0 and i<10) and normResid>10**-5:
                 print("Inverting  (E-QH0Q)^-1 **OR** the full (E-QHQ)^-1")
-                PspaceDim = 0
-                Sindx = target + i - PspaceDim  # sending in latest 3 vectors in R
-                Eindx = target + i + 1
-                CGtol = 10**-7
-                invBOOL = "QH0Q"
-                # H0=np.diag(np.diag(Amat))
-                print("sending r 348", R[348, 0])
                 gap_estimate = 0.1  # theta[-1]/theta[0] if j>0 else theta_p
-                print("gap estimate: ", gap_estimate)
                 sigma = (
-                    theta_p - gap_estimate
+                    theta_p #- gap_estimate
                 )  # gap_estimate is estimate ratio of evalMAX/evalMIN
-                ritzVecs_SetBKUP = ritzVecs_Set.copy()
+                microiter=2
                 R[:, target + i + 1], matrixVecMultiplies = Initialize_LinearEqnSolv(
                     invBOOL,
                     Amat,
@@ -748,28 +720,14 @@ def Run_DavidsonBWPT(
                     residual,
                     normResid,
                     matrixVecMultiplies,
+                    microiter
                 )
-            elif iterH0def == "static_QH0Q":
-                R[:, target + i + 1], matrixVecMultiplies = Get_BWPT_Expansion(
-                    residual,
-                    new_p,
-                    theta_p,
-                    H0,
-                    Amat,
-                    V,
-                    matrixDim,
-                    matrixVecMultiplies,
-                    BWPTorder=1,
-                    target=target,
-                )
-                # R[:,target+i+1],matrixVecMultiplies=Get_BWPT_Expansion(residual,p,theta_p,H0,Amat,V,matrixDim,matrixVecMultiplies,
-                #                                                       BWPTorder=2,target=0)
-
-            elif (
+            elif ( # Uses a H0 defn other than the diagonal to define correction vector
                 H0def == "TriDiag"
                 or H0def == "dynamicH0Diag"
                 or H0def == "BiDiag"
                 or H0def == "QuadDiag"
+                or H0def == "10diag"
             ):
                 print("Inverting the H0 approximation using ...", H0def)
                 sigma = theta_p
@@ -787,14 +745,15 @@ def Run_DavidsonBWPT(
                     residual,
                     normResid,
                     matrixVecMultiplies,
+                    microiter
                 )
-            else:
+            else: # Get standard Davidson correction vector
                 print("Norm of residual in main loop: ", np.linalg.norm(residual))
                 R = Get_CorrVec(
                     R, residual, theta_p, H0, matrixDim, target + i + 1, 0, H0def
                 )
                 if iterH0def == 'Olsen':
-                    olsenCorrVec=Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H)
+                    olsenCorrVec=Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,Amat)
                     R[:,target+i+1]+=olsenCorrVec
 
             # Orthonormalize the subspace vectors in R, contract the latest R-vector
@@ -804,6 +763,8 @@ def Run_DavidsonBWPT(
             matrixVecMultiplies = matrixVecMultiplies + 1
             rootMatMul.append(matrixVecMultiplies)
             theta, vecs = computeRHR(R, HR, target + i + 1, blockDim)
+
+            # Solve highest energy solns. instead of the lowest 
             if spectrum == "highest":
                 highestIndx = (-theta).argsort()[: i + 2]
                 print("highest index: ", highestIndx)
@@ -842,10 +803,8 @@ def Run_DavidsonBWPT(
                 R[:, : target + i + 2] @ vecs[:, target]
             )  # this is our current Ritz vector; used in J-D procedure
             ritzVecs_Set.append(new_p)
-            print("length of ritZVECS", len(ritzVecs_Set))
             residList.append(normResid)
 
-            print("MQ is my R: ", R[:5, i + 1])
 
             # Check for convergence of ||<r|r>||; if true, then store the solution eigenvector into
             # 'R' variable, and setup the next macro-cycle's initial guess
