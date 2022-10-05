@@ -133,91 +133,8 @@ def linearEqSolnPRECOND(
         return xx, matrixVecMultiplies
 
 
-def GetPrecon_A(Phi, H_Phi, PspaceDim, H, Hdim, guessE):
-    Precon_A = np.zeros((Hdim,))
-    for i in range(Hdim):
-        Precon_A[i,] = (
-            Precon_A[
-                i,
-            ]
-            + guessE
-            - H[i, i]
-        )
-        Precon_A[i,] = (
-            Precon_A[
-                i,
-            ]
-            + np.dot(Phi[i, :], Phi[i, :]) * H[i, i]
-        )
-        Precon_A[i,] = Precon_A[
-            i,
-        ] + np.dot(H_Phi[i, :], Phi[i, :])
-        Precon_A[i,] = (
-            Precon_A[
-                i,
-            ]
-            - (np.dot(Phi[i, :], Phi[i, :]) ** 4) * H[i, i]
-        )
-    finalPrecond_A = np.diag(np.diag(Precon_A))
-
-    projP = Phi @ Phi.T
-    testPrecon = (
-        -H + guessE * np.eye(Hdim) - (projP @ H) @ projP + projP @ H + H @ projP
-    )
-    testdiag = np.diag(testPrecon)
-    np.reshape(Precon_A, (Hdim, 1))
-    print(Precon_A)
-    print(testdiag)
-    # assert np.allclose(Precon_A,testdiag)
-    return np.linalg.inv(np.diag(finalPrecond_A))
 
 
-# Takes the PspaceDim most recent Phi==R, HPhi==HR vectors to define a
-# new Q space through (I-P). Returns the matrix-vector multiply
-# (QHQ - E)|psi>
-# Intended for use inside preconditioned CG or GMRES algorithm
-def Get_matmulT0guessPsi(Phi, H_Phi, PspaceDim, H, Hdim, guessE, guessPsi):
-    HPsi = H @ guessPsi  # H|Psi>
-    EPsi = guessE * guessPsi  # E|Psi>
-
-    # Construct PH|Psi> & HP|Psi>
-    PH_Psi = np.zeros((matrixDim,))
-    HP_Psi = np.zeros((matrixDim,))
-    for i in range(PspaceDim):
-        PH_Psi = PH_Psi + Phi[:, i] * (np.dot(Phi[:, i], HPsi))
-        HP_Psi = HP_Psi + H_Phi[:, i] * (np.dot(Phi[:, i], guessPsi))
-
-    # Construct PHP|Psi>
-    PHP_Psi = np.zeros((matrixDim,))
-    for j in range(PspaceDim):
-        for i in range(PspaceDim):
-            PHP_Psi = PHP_Psi + Phi[:, j] * (np.dot(Phi[:, j], H_Phi[:, i])) * (
-                np.dot(Phi[:, i], guessPsi)
-            )
-
-    return HPsi - EPsi + PHP_Psi - PH_Psi - HP_Psi
-
-
-def addRecursiveCorrections(
-    R, matrixDim, PTorder, V, H0, theta, target=0, H0def="diag"
-):
-    finalR = R
-    tmpR = R
-    p = R
-    print("size of R: ", np.shape(R))
-    for i in range(PTorder):
-        tmpR = V @ tmpR
-        print("size of tmpR: ", np.shape(tmpR))
-        partOne_R = SimpleT0(tmpR, theta, H0, matrixDim, 1, target, H0def)
-
-        partTwo = SimpleT0(p, theta, H0, matrixDim, 1, target, H0def)
-        scalar = p.T @ tmpR
-        partTwo_R = scalar * partTwo
-
-        tmpR = partOne_R - partTwo_R
-        finalR = finalR + tmpR
-        print("shape of final R: ", np.shape(finalR))
-    return finalR
 
 
 def Get_CorrVec(R, residual, theta, H0, matrixDim, i, target=0, H0def="diag"):
@@ -275,7 +192,7 @@ def checkConvergence(normResid, TOL, i, root, solNum=0):
         print("*******************************")
         return True
     else:
-        False
+        return False
 
 
 # After a root,vector has converged the expansion subspace vectors need to be removed so that
@@ -472,6 +389,7 @@ def Initialize_LinearEqnSolv(
     microiter
 ):
     print("Inverting the full resolvent operation", invBOOL)
+    print('Expected number of matmuls after inversion QHQ:', matrixVecMultiplies+microiter)
     solnR, matrixVecMultiplies = linearEqSolnPRECOND(
         invBOOL,
         Amat,
@@ -487,21 +405,9 @@ def Initialize_LinearEqnSolv(
         matrixVecMultiplies,
     )
     print("returning from Initialize_linear eq solv")
-    print(type(solnR), type(matrixVecMultiplies))
     print(solnR[:5], matrixVecMultiplies)
     return solnR, matrixVecMultiplies
 
-
-#    if invBOOL=="QH0Q":
-#        print("Inverting  (E-QH0Q)^-1 at no cost... ")
-#        solnR,matrixVecMultiplies=linearEqSolnPRECOND(invBOOL,Amat,H0,R,HR,\
-#                                             theta_p,matrixDim,PspaceDim,residual,CGtol,\
-#                                             200,matrixVecMultiplies)
-#    elif invBOOL=="QHQ":
-#        print("Inverting the full resolvent operation, (E-QHQ)^-1, approximately...")
-#        solnR,matrixVecMultiplies=linearEqSolnPRECOND(invBOOL,Amat,H0,R,HR,\
-#                                             theta_p,matrixDim,PspaceDim,residual,CGtol,\
-#                                             200,matrixVecMultiplies)
 
 
 # Program: General-purpose, single-vector Davidson-based iterative diagonlizer constructed using BW-PT
@@ -537,63 +443,6 @@ def Initialize_LinearEqnSolv(
 # resid: An array of the residual vectors corresponding to each root
 
 
-def Get_BWPT_Expansion(
-    residual, p, theta_p, H0, H, V, matrixDim, matmuls, BWPTorder=1, target=0
-):
-    # calculate T0|r> & T0|p>
-    # if matmuls==1:
-    # print('modifying p')
-    # p=p+np.random.rand(matrixDim,1)
-    # p=p/np.linalg.norm(p)
-
-    print("shapes of residual and p: ", np.shape(residual), np.shape(p))
-    T0_R = SimpleT0(residual, theta_p, H0, matrixDim, 1, target=0, H0def="diag")
-    T0_p = SimpleT0(p, theta_p, H0, matrixDim, 1, target=0, H0def="diag")
-    Hp = H @ p
-    T0_HP = SimpleT0(Hp, theta_p, H0, matrixDim, 1, target=0, H0def="diag")
-
-    print(
-        "shape of T0s: ",
-        np.shape(T0_R),
-        np.shape(T0_p),
-        np.linalg.norm(T0_p),
-        np.linalg.norm(T0_R),
-    )
-
-    if BWPTorder > 1:
-        VT0_p = V @ T0_p
-        VT0_R = V @ T0_R
-
-        T0_VT0_p = SimpleT0(VT0_p, theta_p, H0, matrixDim, 1, target=0, H0def="diag")
-        T0_VT0_R = SimpleT0(VT0_R, theta_p, H0, matrixDim, 1, target=0, H0def="diag")
-
-        alpha = (p[:, 0].T @ T0_R + p[:, 0].T @ T0_VT0_R) / (
-            p[:, 0].T @ T0_p + p[:, 0].T @ T0_VT0_p
-        )
-        print("alpha: ", alpha)
-        corrVec = T0_R + T0_VT0_R - alpha * (T0_p + T0_VT0_p)
-        print(
-            "@Get_BWPT_Expansion: Checking if <p|psi>==0:",
-            p.T[
-                :,
-            ]
-            @ corrVec,
-        )
-        matmuls = matmuls + 2
-    else:
-        print("shapes of alpha var: ", np.shape(p), np.shape(T0_p), np.shape(T0_R))
-        print("overlap <p|r>:", p[:, 0].T @ residual)
-        # alpha=(np.dot(p[:,0],T0_R))/(np.dot(p[:,0],T0_p))
-        # print('alpha: ',alpha, np.shape(alpha))
-        # corrVec=alpha*T0_p -T0_R
-
-        scalars = theta_p + (Hp[:].T @ T0_HP)  # + (T0_HP[:].T@V)@T0_HP[:]
-        corrVec = T0_R - scalars * T0_p
-        print("@Get_BWPT_Expansion: Checking if <p|psi>==0:", p.T[:] @ corrVec)
-        matmuls = matmuls
-
-    print("shape of corrVec:", np.shape(corrVec))
-    return corrVec, matmuls
 
 
 def Get_OlsenVec(new_p,residual,H0,theta_p,matrixDim,H):
