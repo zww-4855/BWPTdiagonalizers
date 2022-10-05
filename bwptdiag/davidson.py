@@ -481,15 +481,14 @@ def Run_DavidsonBWPT(
     p=np.asarray([]),
     theta=None,
     TOL=10**-6,
-    maxItr=20,
+    maxItr=40,
     solnCount=1,
     H0def="diag",
-    highOresolvent=OrderedDict(),
     invBOOL=None,
-    numSSVecs_keep=1,
-    maxSSvecs=5,
-    iterH0def="dynamic_QH0Q",
+    numSSVecs_keep=200,
+    maxSSvecs=5000,
     spectrum="lowest",
+    microiter=None
 ):  #'static_QH0Q'):
     # Initialize starting guess, |p>, guess eval, theta, and the sorted array of diagonal elements.
     # Then partition the full H=H0+V, store |p> into 'R', contract 'R' with the full H, compute the residual.
@@ -564,7 +563,6 @@ def Run_DavidsonBWPT(
                 sigma = (
                     theta_p #- gap_estimate
                 )  # gap_estimate is estimate ratio of evalMAX/evalMIN
-                microiter=2
                 R[:, target + i + 1], matrixVecMultiplies = Initialize_LinearEqnSolv(
                     invBOOL,
                     Amat,
