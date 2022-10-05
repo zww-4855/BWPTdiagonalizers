@@ -11,12 +11,12 @@ def computeRHR(R, HR, i, blockDim):
     #    print('size of RHR should be ',i+1,i+1)
     RHR = R[:, : blockDim + i].T @ HR[:, : blockDim + i]
     #    print('actual size of RHR:',np.shape(RHR))
-    print("RHR: \n", RHR)
+    #print("RHR: \n", RHR)
     #    print('transpose RHR: \n', HR[:,:blockDim+i].T@R[:,:blockDim+i])
     #    print('print mini RHR: \n',R[:,:blockDim+i-1].T@HR[:,:blockDim+i-1])
     #    print('dot prod: ', np.dot(R[:,0],HR[:,1]),np.dot(R[:,1],HR[:,0]))
     print(
-        "Debug: Make sure RHR==RHR.T ie is Hermitian",
+        "@COMPUTERHR Debug: Make sure RHR==RHR.T ie is Hermitian",
         np.allclose(RHR, RHR.T, rtol=10**-15, atol=10**-15),
     )
     roots, vecs = np.linalg.eig(RHR)
