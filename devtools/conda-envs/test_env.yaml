@@ -8,6 +8,12 @@ dependencies:
     # Base depends
   - python
   - pip
+  - numpy
+  - scipy
+  - os
+  - math
+  - sys
+  - collections 
 
     # Testing
   - pytest
