@@ -10,10 +10,6 @@ dependencies:
   - pip
   - numpy
   - scipy
-  - os
-  - math
-  - sys
-  - collections 
 
     # Testing
   - pytest
